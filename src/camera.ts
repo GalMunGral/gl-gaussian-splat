@@ -2,9 +2,9 @@ import { mat4 } from 'gl-matrix';
 
 export class Camera {
   target   = new Float32Array([0, 0, 0]);
-  distance = 10;
+  distance = 6;
   yaw      = 0;
-  pitch    = 0;
+  pitch    = 0.4;
 
   private dragging = false;
   private lastX    = 0;
