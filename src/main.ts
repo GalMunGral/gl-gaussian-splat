@@ -1,13 +1,19 @@
 import { Camera } from './camera';
+import { Prepass } from './prepass';
+import { GpuSort, nextPow2, WORKGROUP_SIZE } from './sort';
 import splatWGSL from './splat.wgsl?raw';
 
 async function main() {
+  const RENDER_SCALE = 0.5;  // render at half resolution; browser upscales via CSS
+
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
+  canvas.style.width  = '100vw';
+  canvas.style.height = '100vh';
+  canvas.width  = Math.floor(window.innerWidth  * RENDER_SCALE);
+  canvas.height = Math.floor(window.innerHeight * RENDER_SCALE);
   window.addEventListener('resize', () => {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width  = Math.floor(window.innerWidth  * RENDER_SCALE);
+    canvas.height = Math.floor(window.innerHeight * RENDER_SCALE);
   });
 
   // --- WebGPU init ---
@@ -24,26 +30,34 @@ async function main() {
   context.configure({ device, format, alphaMode: 'premultiplied' });
 
   // --- load binary ---
-  const res      = await fetch('/truck.bin');
-  const buffer   = await res.arrayBuffer();
-  const gaussians = new Float32Array(buffer);
-  const N        = buffer.byteLength / 256;
+  const dataUrl = import.meta.env.VITE_DATA_URL ?? './truck.bin';
+  const res    = await fetch(dataUrl);
+  const buffer = await res.arrayBuffer();
+  const N      = buffer.byteLength / 256;
   console.log(`loaded ${N} gaussians`);
 
-  // --- GPU storage buffer ---
+  // --- GPU buffers ---
+  const Npadded = nextPow2(N);
+
   const splatBuffer = device.createBuffer({
     size:  buffer.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
   device.queue.writeBuffer(splatBuffer, 0, buffer);
 
-  // --- index buffer (sorted each frame on CPU) ---
+  // precomp: 12 floats per Gaussian (Npadded entries; padding slots get z_cam=1e9 sentinel)
+  // precomp[i][2] = z_cam, used as the gather-sort key
+  const precompBuffer = device.createBuffer({
+    size:  Npadded * 12 * 4,
+    usage: GPUBufferUsage.STORAGE,
+  });
+
+  // index buffer: initialised to identity [0,1,...,Npadded-1]; only the sort rearranges it
   const indexBuffer = device.createBuffer({
-    size:  N * 4,
+    size:  Npadded * 4,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
-  const indices = new Uint32Array(N);
-  const zValues = new Float32Array(N);
+  device.queue.writeBuffer(indexBuffer, 0, new Uint32Array(Npadded).map((_, i) => i));
 
   // --- uniform buffer: view(64) + proj(64) + campos(12) + pad(4) + viewport(8) + pad(8) = 160 bytes ---
   const uniformBuffer = device.createBuffer({
@@ -51,14 +65,18 @@ async function main() {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  // --- shader + pipeline ---
+  // --- prepass + sort ---
+  const prepass = new Prepass(device, uniformBuffer, splatBuffer, precompBuffer, Npadded, WORKGROUP_SIZE);
+  const sorter  = new GpuSort(device, precompBuffer, indexBuffer, N);
+
+  // --- render pipeline ---
   const shader = device.createShaderModule({ code: splatWGSL });
 
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
-      { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
-      { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
-      { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
+      { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform'           } },
+      { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage'  } },
+      { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage'  } },
     ],
   });
 
@@ -78,9 +96,9 @@ async function main() {
   const bindGroup = device.createBindGroup({
     layout: bindGroupLayout,
     entries: [
-      { binding: 0, resource: { buffer: uniformBuffer } },
-      { binding: 1, resource: { buffer: splatBuffer   } },
-      { binding: 2, resource: { buffer: indexBuffer   } },
+      { binding: 0, resource: { buffer: uniformBuffer  } },
+      { binding: 1, resource: { buffer: precompBuffer  } },
+      { binding: 2, resource: { buffer: indexBuffer    } },
     ],
   });
 
@@ -100,18 +118,7 @@ async function main() {
 
     const aspect = canvas.width / canvas.height;
     const view   = camera.viewMatrix();
-
-    // CPU sort: compute camera-space z for each Gaussian, sort back-to-front
-    // view is column-major; row 2 of view matrix gives the z_cam of each point
-    const r2 = view[2], r6 = view[6], r10 = view[10], r14 = view[14];
-    for (let i = 0; i < N; i++) {
-      const b   = i * 64;  // 64 floats per Gaussian
-      zValues[i] = r2 * gaussians[b] + r6 * gaussians[b + 1] + r10 * gaussians[b + 2] + r14;
-      indices[i] = i;
-    }
-    indices.sort((a, b) => zValues[a] - zValues[b]);
-    device.queue.writeBuffer(indexBuffer, 0, indices);
-    const proj   = Camera.projMatrix(Math.PI / 3, aspect, 0.1, 1000);
+    const proj   = Camera.projMatrix(Math.PI / 3, aspect, 0.1, 100);
 
     device.queue.writeBuffer(uniformBuffer, 0,   view);
     device.queue.writeBuffer(uniformBuffer, 64,  proj);
@@ -119,6 +126,15 @@ async function main() {
     device.queue.writeBuffer(uniformBuffer, 144, new Float32Array([canvas.width, canvas.height]));
 
     const encoder = device.createCommandEncoder();
+    if (camera.needsPrepass) {
+      prepass.encode(encoder);
+      camera.needsPrepass = false;
+    }
+    if (camera.needsSort) {
+      sorter.encode(encoder);
+      camera.needsSort = false;
+    }
+
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
         view:       context.getCurrentTexture().createView(),

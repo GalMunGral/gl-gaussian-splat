@@ -6,9 +6,13 @@ export class Camera {
   yaw      = 0;
   pitch    = 0.4;
 
-  private dragging = false;
-  private lastX    = 0;
-  private lastY    = 0;
+  needsPrepass = true;  // recompute SH + cov2d; set on rotate or zoom
+  needsSort    = true;  // re-sort depth order; debounced — fires after drag stops
+
+  private dragging        = false;
+  private lastX           = 0;
+  private lastY           = 0;
+  private sortDebounce:     ReturnType<typeof setTimeout> | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     canvas.addEventListener('mousedown', e => {
@@ -16,7 +20,7 @@ export class Camera {
       this.lastX = e.clientX;
       this.lastY = e.clientY;
     });
-    window.addEventListener('mouseup',   () => { this.dragging = false; });
+    window.addEventListener('mouseup', () => { this.dragging = false; });
     window.addEventListener('mousemove', e => {
       if (!this.dragging) return;
       this.yaw   -= (e.clientX - this.lastX) * 0.005;
@@ -24,10 +28,15 @@ export class Camera {
       this.pitch   = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch));
       this.lastX   = e.clientX;
       this.lastY   = e.clientY;
+      this.needsPrepass = true;
+      // debounce sort: only re-sort 150ms after the drag stops
+      if (this.sortDebounce !== null) clearTimeout(this.sortDebounce);
+      this.sortDebounce = setTimeout(() => { this.needsSort = true; }, 150);
     });
     canvas.addEventListener('wheel', e => {
       this.distance *= Math.exp(e.deltaY * 0.001);
-      this.distance  = Math.max(0.1, this.distance);
+      this.distance  = Math.max(3, Math.min(20, this.distance));
+      this.needsPrepass = true;  // NDC positions and SH view dirs change with campos
     }, { passive: true });
   }
 
