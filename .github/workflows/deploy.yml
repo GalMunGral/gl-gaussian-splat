@@ -29,10 +29,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Build
-        env:
-          VITE_DATA_URL: ${{ vars.DATA_URL }}
-        run: npm run build
+      - run: npm run build
 
       - uses: actions/configure-pages@v4
 

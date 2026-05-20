@@ -30,11 +30,18 @@ async function main() {
   context.configure({ device, format, alphaMode: 'premultiplied' });
 
   // --- load binary ---
-  const dataUrl = import.meta.env.VITE_DATA_URL ?? './truck.bin';
-  const res    = await fetch(dataUrl);
-  const buffer = await res.arrayBuffer();
-  const N      = buffer.byteLength / 256;
-  console.log(`loaded ${N} gaussians`);
+  const base     = import.meta.env.VITE_DATA_BASE ?? '.';
+  const { chunks: nChunks } = await fetch(`${base}/truck.json`).then(r => r.json());
+  const parts    = await Promise.all(
+    Array.from({ length: nChunks }, (_, i) => fetch(`${base}/truck_${i}.bin`).then(r => r.arrayBuffer()))
+  );
+  const totalBytes = parts.reduce((s, p) => s + p.byteLength, 0);
+  const combined   = new Uint8Array(totalBytes);
+  let off = 0;
+  for (const part of parts) { combined.set(new Uint8Array(part), off); off += part.byteLength; }
+  const buffer = combined.buffer;
+  const N      = totalBytes / 256;
+  console.log(`loaded ${N} gaussians (${nChunks} chunks)`);
 
   // --- GPU buffers ---
   const Npadded = nextPow2(N);

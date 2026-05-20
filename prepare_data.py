@@ -1,5 +1,9 @@
 """
-Download the truck Gaussian Splat PLY from HuggingFace and export public/truck.bin.
+Download the truck Gaussian Splat PLY from HuggingFace and export public/truck_*.bin.
+
+The binary is split into chunks small enough to be tracked in git (<100 MB each).
+A manifest at public/truck.json records the chunk count so the browser can fetch
+all chunks in parallel and reassemble them.
 
 Requirements:
     pip install huggingface_hub plyfile numpy
@@ -8,10 +12,14 @@ Usage:
     python prepare_data.py
 """
 
+import json
+import math
 import os
 import numpy as np
 from plyfile import PlyData
 from huggingface_hub import hf_hub_download
+
+CHUNK_BYTES = 80 * 1024 * 1024  # 80 MB per chunk — safely under GitHub's 100 MB limit
 
 OPACITY_THRESHOLD = 0.1
 SIZE_THRESHOLD    = 0.01   # world-space units; max extent across all 3 principal axes
@@ -87,9 +95,17 @@ def main():
     assert data.shape[1] == 64, f"expected 64 floats per Gaussian, got {data.shape[1]}"
 
     os.makedirs('public', exist_ok=True)
-    out = 'public/truck.bin'
-    data.tofile(out)
-    print(f"  written: {out}  ({data.nbytes / 1e6:.1f} MB)  —  {mask.sum()} Gaussians x 256 bytes")
+
+    gaussians_per_chunk = CHUNK_BYTES // 256
+    n_chunks = math.ceil(len(data) / gaussians_per_chunk)
+    for i, chunk in enumerate(np.array_split(data, n_chunks)):
+        out = f'public/truck_{i}.bin'
+        chunk.tofile(out)
+        print(f"  written: {out}  ({chunk.nbytes / 1e6:.1f} MB)  —  {len(chunk)} Gaussians")
+
+    with open('public/truck.json', 'w') as f:
+        json.dump({'chunks': n_chunks}, f)
+    print(f"  written: public/truck.json  ({n_chunks} chunks)")
 
 
 if __name__ == '__main__':

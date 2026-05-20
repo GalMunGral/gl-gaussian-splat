@@ -3,5 +3,5 @@ node_modules/
 .python-version
 .venv/
 data/
-public/*.bin
+# public/*.bin is intentionally tracked (split chunks are <100 MB each)
 dist/
