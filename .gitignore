@@ -1,9 +1,7 @@
 node_modules/
+.ipynb_checkpoints/
+.python-version
 .venv/
 data/
 public/*.bin
 dist/
-*.json
-!package.json
-!tsconfig.json
-!vite.config.ts
