@@ -30,11 +30,25 @@ async function main() {
   context.configure({ device, format, alphaMode: 'premultiplied' });
 
   // --- load binary ---
-  const base     = import.meta.env.VITE_DATA_BASE ?? '.';
+  const base = import.meta.env.VITE_DATA_BASE ?? '.';
   const { chunks: nChunks } = await fetch(`${base}/truck.json`).then(r => r.json());
-  const parts    = await Promise.all(
-    Array.from({ length: nChunks }, (_, i) => fetch(`${base}/truck_${i}.bin`).then(r => r.arrayBuffer()))
+
+  const loadingEl = document.getElementById('loading')!;
+  const barEl     = document.getElementById('loading-bar') as HTMLElement;
+  const labelEl   = document.getElementById('loading-label')!;
+  let done = 0;
+  const parts = await Promise.all(
+    Array.from({ length: nChunks }, (_, i) =>
+      fetch(`${base}/truck_${i}.bin`).then(r => r.arrayBuffer()).then(buf => {
+        done++;
+        barEl.style.width  = `${(done / nChunks) * 100}%`;
+        labelEl.textContent = `loading… ${done} / ${nChunks}`;
+        return buf;
+      })
+    )
   );
+  loadingEl.remove();
+
   const totalBytes = parts.reduce((s, p) => s + p.byteLength, 0);
   const combined   = new Uint8Array(totalBytes);
   let off = 0;
