@@ -4,4 +4,4 @@ node_modules/
 .venv/
 data/
 # public/*.bin is intentionally tracked (split chunks are <100 MB each)
-dist/
+dist/public/truck.bin

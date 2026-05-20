@@ -13,13 +13,12 @@ Usage:
 """
 
 import json
-import math
 import os
 import numpy as np
 from plyfile import PlyData
 from huggingface_hub import hf_hub_download
 
-CHUNK_BYTES = 80 * 1024 * 1024  # 80 MB per chunk — safely under GitHub's 100 MB limit
+N_CHUNKS = 100
 
 OPACITY_THRESHOLD = 0.1
 SIZE_THRESHOLD    = 0.01   # world-space units; max extent across all 3 principal axes
@@ -96,16 +95,14 @@ def main():
 
     os.makedirs('public', exist_ok=True)
 
-    gaussians_per_chunk = CHUNK_BYTES // 256
-    n_chunks = math.ceil(len(data) / gaussians_per_chunk)
-    for i, chunk in enumerate(np.array_split(data, n_chunks)):
+    for i, chunk in enumerate(np.array_split(data, N_CHUNKS)):
         out = f'public/truck_{i}.bin'
         chunk.tofile(out)
         print(f"  written: {out}  ({chunk.nbytes / 1e6:.1f} MB)  —  {len(chunk)} Gaussians")
 
     with open('public/truck.json', 'w') as f:
-        json.dump({'chunks': n_chunks}, f)
-    print(f"  written: public/truck.json  ({n_chunks} chunks)")
+        json.dump({'chunks': N_CHUNKS}, f)
+    print(f"  written: public/truck.json  ({N_CHUNKS} chunks)")
 
 
 if __name__ == '__main__':
