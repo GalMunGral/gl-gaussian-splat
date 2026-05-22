@@ -3,5 +3,6 @@ node_modules/
 .python-version
 .venv/
 data/
-# public/*.bin is intentionally tracked (split chunks are <100 MB each)
-dist/public/truck.bin
+# truck_N.bin chunks are intentionally tracked (each <100 MB)
+public/truck.bin
+dist/

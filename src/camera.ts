@@ -6,13 +6,12 @@ export class Camera {
   yaw      = 0;
   pitch    = 0.4;
 
-  needsPrepass = true;  // recompute SH + cov2d; set on rotate or zoom
-  needsSort    = true;  // re-sort depth order; debounced — fires after drag stops
+  needsPrepass = true;
+  needsSort    = true;
 
-  private dragging        = false;
-  private lastX           = 0;
-  private lastY           = 0;
-  private sortDebounce:     ReturnType<typeof setTimeout> | null = null;
+  private dragging = false;
+  private lastX    = 0;
+  private lastY    = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     canvas.addEventListener('mousedown', e => {
@@ -29,9 +28,7 @@ export class Camera {
       this.lastX   = e.clientX;
       this.lastY   = e.clientY;
       this.needsPrepass = true;
-      // debounce sort: only re-sort 150ms after the drag stops
-      if (this.sortDebounce !== null) clearTimeout(this.sortDebounce);
-      this.sortDebounce = setTimeout(() => { this.needsSort = true; }, 150);
+      this.needsSort    = true;
     });
     canvas.addEventListener('wheel', e => {
       this.distance *= Math.exp(e.deltaY * 0.001);

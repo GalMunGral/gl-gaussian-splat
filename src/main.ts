@@ -4,16 +4,12 @@ import { GpuSort, nextPow2, WORKGROUP_SIZE } from './sort';
 import splatWGSL from './splat.wgsl?raw';
 
 async function main() {
-  const RENDER_SCALE = 0.5;  // render at half resolution; browser upscales via CSS
-
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-  canvas.style.width  = '100vw';
-  canvas.style.height = '100vh';
-  canvas.width  = Math.floor(window.innerWidth  * RENDER_SCALE);
-  canvas.height = Math.floor(window.innerHeight * RENDER_SCALE);
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
   window.addEventListener('resize', () => {
-    canvas.width  = Math.floor(window.innerWidth  * RENDER_SCALE);
-    canvas.height = Math.floor(window.innerHeight * RENDER_SCALE);
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
   });
 
   // --- WebGPU init ---
