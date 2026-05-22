@@ -6,11 +6,11 @@
 
 ### Purpose
 
-[gl-raytracer](https://github.com/GalMunGral/gl-raytracer) showed that a fragment shader can serve as a general-purpose parallel compute kernel. This project takes that observation further: in a Gaussian splatting renderer, the graphics pipeline contributes almost nothing. The vertex shader reads precomputed positions from a storage buffer; the fragment shader evaluates a 2D Gaussian falloff and blends. The real work — spherical harmonics evaluation, covariance projection, depth sorting — runs entirely in compute shaders. The boundary between rendering and general compute is architectural, not conceptual.
+[gl-raytracer](https://github.com/GalMunGral/gl-raytracer) showed that a fragment shader can serve as a general-purpose parallel compute kernel. This project takes that observation further. In a Gaussian splatting renderer, the algorithmic work — spherical harmonics evaluation, covariance projection, depth sorting — runs entirely in compute shaders. The vertex and fragment stages handle rasterization and compositing, but carry no domain logic of their own. The boundary between rendering and general compute is architectural, not conceptual.
 
 ### Strategy
 
-Dragging the scene dispatches a prepass compute shader and a radix sort compute shader before the render pass executes. The graphics pipeline receives fully prepared data and contributes no logic of its own. For an audience familiar with the rasterization pipeline, this inversion is the point.
+Dragging the scene dispatches a prepass compute shader and a radix sort compute shader before the render pass executes. The compute passes bear the algorithmic weight; the render pass handles rasterization and compositing. For an audience familiar with the rasterization pipeline, this inversion is the point.
 
 ## Technical Challenges
 
@@ -44,6 +44,6 @@ where $\alpha_i = \text{sigmoid}(\sigma_i)$.
 
 Alpha compositing requires Gaussians in back-to-front order, which changes with every camera rotation.
 
-**Radix sort.** An LSD radix sort reorders the Gaussian index array each rotation. Four passes — one per byte of the sort key, LSB to MSB — each consist of a histogram, a prefix scan, and a stable scatter: 12 compute dispatches total versus 190+ for a bitonic sort. The sort key is the bitwise complement of the NDC depth, which maps positive floats to descending integer order. Stability within each workgroup is achieved without atomics: one thread per bucket scans the workgroup's 256 elements in thread-index order, assigning ranks to disjoint positions in shared memory.
+**Radix sort.** An LSD radix sort reorders the Gaussian index array each rotation. Four passes — one per byte of the sort key, LSB to MSB — each consist of a histogram, a prefix scan, and a stable scatter: 12 compute dispatches total versus 190+ for a bitonic sort. The sort key is the bitwise complement of the NDC depth, which maps positive floats to descending integer order. Each pass is stable.
 
-**Prepass caching.** Without caching, SH evaluation and covariance projection would execute four times per Gaussian per frame — once per quad vertex. A compute prepass writes a 12-float record per Gaussian (NDC position, screen-space covariance inverse, RGB, opacity) that all four vertices read identically. On static frames neither the prepass nor the sort fires.
+**Prepass caching.** Without caching, SH evaluation and covariance projection would execute four times per Gaussian per frame — once per quad vertex. A compute prepass runs once per camera move and caches per-Gaussian results that all four vertices read identically. On static frames neither the prepass nor the sort fires.
