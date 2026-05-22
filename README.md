@@ -16,7 +16,7 @@ Dragging the scene dispatches a prepass compute shader and a radix sort compute 
 
 ### The Gaussian Splatting Model
 
-Each Gaussian is parameterized by a center $\mu \in \mathbb{R}^3$, a covariance matrix $\Sigma \in \mathbb{R}^{3 \times 3}$, degree-3 spherical harmonic coefficients per color channel, and an opacity $\sigma$.
+Each Gaussian is parameterized by a center $\mu \in \mathbb{R}^3$, a covariance matrix $\Sigma \in \mathbb{R}^{3 \times 3}$, degree-3 spherical harmonic coefficients per color channel, and an opacity $\alpha \in (0, 1)$.
 
 **Projection.** The perspective projection $\pi : \mathbb{R}^3 \to \mathbb{R}^2$ maps a camera-space point $(x, y, z)$ to
 
@@ -36,7 +36,6 @@ giving the screen-space covariance $\Sigma' = J W \Sigma W^\top J^\top$. The con
 \alpha_i \exp\!\left(-\tfrac{1}{2}\,\Delta\mathbf{p}^\top \Sigma'^{-1} \Delta\mathbf{p}\right), \qquad \Delta\mathbf{p} = \mathbf{p} - \pi(\mu_i)
 ```
 
-where $\alpha_i = \text{sigmoid}(\sigma_i)$.
 
 **View-dependent color.** Degree-3 spherical harmonics provide 16 basis functions per channel. The prepass evaluates them for the current view direction and writes a single RGB value per Gaussian.
 
