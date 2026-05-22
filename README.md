@@ -40,12 +40,6 @@ where $\pi$ denotes perspective projection and $\alpha_i = \text{sigmoid}(\sigma
 
 Alpha compositing requires Gaussians in back-to-front order, which changes with every camera rotation.
 
-**Radix sort.** An LSD radix sort reorders the Gaussian index array each rotation. Four passes — one per byte of the sort key, LSB to MSB — each consist of a histogram, a prefix scan, and a stable scatter: 12 compute dispatches total versus 190+ for a bitonic sort. The sort key
-
-```math
-\texttt{bitcast<u32>}(\text{ndc}.z) \oplus \texttt{0xFFFFFFFF}
-```
-
-maps positive floats to descending uint32 order without branching. Stability within each workgroup is achieved without atomics: one thread per bucket scans the workgroup's 256 elements in thread-index order, assigning ranks to disjoint positions in shared memory.
+**Radix sort.** An LSD radix sort reorders the Gaussian index array each rotation. Four passes — one per byte of the sort key, LSB to MSB — each consist of a histogram, a prefix scan, and a stable scatter: 12 compute dispatches total versus 190+ for a bitonic sort. The sort key is the bitwise complement of the NDC depth, which maps positive floats to descending integer order. Stability within each workgroup is achieved without atomics: one thread per bucket scans the workgroup's 256 elements in thread-index order, assigning ranks to disjoint positions in shared memory.
 
 **Prepass caching.** Without caching, SH evaluation and covariance projection would execute four times per Gaussian per frame — once per quad vertex. A compute prepass writes a 12-float record per Gaussian (NDC position, screen-space covariance inverse, RGB, opacity) that all four vertices read identically. On static frames neither the prepass nor the sort fires.
