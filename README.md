@@ -43,7 +43,7 @@ Alpha compositing requires Gaussians in back-to-front order, which changes with 
 **Radix sort.** An LSD radix sort reorders the Gaussian index array each rotation. Four passes — one per byte of the sort key, LSB to MSB — each consist of a histogram, a prefix scan, and a stable scatter: 12 compute dispatches total versus 190+ for a bitonic sort. The sort key
 
 ```math
-\texttt{bitcast\textless u32\textgreater}(\text{ndc}.z) \oplus \texttt{0xFFFFFFFF}
+\texttt{bitcast<u32>}(\text{ndc}.z) \oplus \texttt{0xFFFFFFFF}
 ```
 
 maps positive floats to descending uint32 order without branching. Stability within each workgroup is achieved without atomics: one thread per bucket scans the workgroup's 256 elements in thread-index order, assigning ranks to disjoint positions in shared memory.
