@@ -18,21 +18,27 @@ Dragging the scene dispatches a prepass compute shader and a radix sort compute 
 
 ### The Gaussian Splatting Model
 
-Each Gaussian is parameterized by a center $\mu \in \mathbb{R}^3$, a covariance matrix $\Sigma \in \mathbb{R}^{3 \times 3}$ (stored as a lower-triangular factor), degree-3 spherical harmonic coefficients per color channel, and an opacity $\sigma$.
+Each Gaussian is parameterized by a center $\mu \in \mathbb{R}^3$, a covariance matrix $\Sigma \in \mathbb{R}^{3 \times 3}$, degree-3 spherical harmonic coefficients per color channel, and an opacity $\sigma$.
 
-**Projection.** Let $W$ be the rotation part of the view matrix and $J$ the Jacobian of the perspective divide evaluated at the projected mean. The screen-space covariance is
+**Projection.** The perspective projection $\pi : \mathbb{R}^3 \to \mathbb{R}^2$ maps a camera-space point $(x, y, z)$ to
 
 ```math
-\Sigma' = J W \Sigma W^\top J^\top
+\pi(x, y, z) = \left(\frac{f_x x}{z},\; \frac{f_y y}{z}\right)
 ```
 
-$J$ is a first-order Taylor approximation that linearizes the perspective transform locally at the mean. The contribution of Gaussian $i$ at screen position $\mathbf{p}$ is then
+This is nonlinear, so the 3D Gaussian does not project exactly to a 2D Gaussian. The standard approximation linearizes $\pi$ at the camera-space mean $\mu_c = W\mu$, where $W$ is the rotation part of the view matrix. The Jacobian there is
+
+```math
+J = \begin{pmatrix} f_x / z_c & 0 & -f_x x_c / z_c^2 \\ 0 & f_y / z_c & -f_y y_c / z_c^2 \end{pmatrix}
+```
+
+giving the screen-space covariance $\Sigma' = J W \Sigma W^\top J^\top$. The contribution of Gaussian $i$ at screen position $\mathbf{p}$ is then
 
 ```math
 \alpha_i \exp\!\left(-\tfrac{1}{2}\,\Delta\mathbf{p}^\top \Sigma'^{-1} \Delta\mathbf{p}\right), \qquad \Delta\mathbf{p} = \mathbf{p} - \pi(\mu_i)
 ```
 
-where $\pi$ denotes perspective projection and $\alpha_i = \text{sigmoid}(\sigma_i)$.
+where $\alpha_i = \text{sigmoid}(\sigma_i)$.
 
 **View-dependent color.** Degree-3 spherical harmonics provide 16 basis functions per channel. The prepass evaluates them for the current view direction and writes a single RGB value per Gaussian.
 
