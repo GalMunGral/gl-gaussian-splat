@@ -8,8 +8,6 @@
 
 [gl-raytracer](https://github.com/GalMunGral/gl-raytracer) showed that a fragment shader can serve as a general-purpose parallel compute kernel. This project takes that observation further: in a Gaussian splatting renderer, the graphics pipeline contributes almost nothing. The vertex shader reads precomputed positions from a storage buffer; the fragment shader evaluates a 2D Gaussian falloff and blends. The real work — spherical harmonics evaluation, covariance projection, depth sorting — runs entirely in compute shaders. The boundary between rendering and general compute is architectural, not conceptual.
 
-Gaussian splatting also represents a break from conventional scene representations. There is no mesh, no UV map, no artist-authored geometry. The scene is a cloud of semi-transparent ellipsoids fit to photographs — a learned representation. This connects [cpu-raytracer](https://github.com/GalMunGral/cpu-raytracer) and [gl-raytracer](https://github.com/GalMunGral/gl-raytracer), which operate on explicit geometry, to a new paradigm where the representation itself is the output of an optimization.
-
 ### Strategy
 
 Dragging the scene dispatches a prepass compute shader and a radix sort compute shader before the render pass executes. The graphics pipeline receives fully prepared data and contributes no logic of its own. For an audience familiar with the rasterization pipeline, this inversion is the point.
