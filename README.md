@@ -1,12 +1,12 @@
 # WebGPU Gaussian Splatting
 
-**Live demo:** https://galmungral.github.io/gl-gaussian-splat/
+**Live demo:** https://hwenchi.github.io/gl-gaussian-splat/
 
 ## Rhetorical Design
 
 ### Purpose
 
-[gl-raytracer](https://github.com/GalMunGral/gl-raytracer) showed that a fragment shader can serve as a general-purpose parallel compute kernel. This project takes that observation further. In a Gaussian splatting renderer, the algorithmic work — spherical harmonics evaluation, covariance projection, depth sorting — runs entirely in compute shaders. The vertex and fragment stages handle rasterization and compositing, but carry no domain logic of their own. The boundary between rendering and general compute is architectural, not conceptual.
+[gl-raytracer](https://github.com/hwenchi/gl-raytracer) showed that a fragment shader can serve as a general-purpose parallel compute kernel. This project takes that observation further. In a Gaussian splatting renderer, the algorithmic work — spherical harmonics evaluation, covariance projection, depth sorting — runs entirely in compute shaders. The vertex and fragment stages handle rasterization and compositing, but carry no domain logic of their own. The boundary between rendering and general compute is architectural, not conceptual.
 
 ### Strategy
 
